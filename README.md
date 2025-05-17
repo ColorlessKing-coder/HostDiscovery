@@ -3,9 +3,14 @@
 # 🐍  HostDiscovery
 
 Welcome to  ** HostDiscovery Program **! 🎯  
+
 This script will provide you with information about the devices located within the network. ✨
+
 This tool is not as advanced as tools like nmap.
+
 Port detection and service detection have been kept completely simple. A thorough detection has not been made; it has been done superficially.
+
+
 ---
 
 
