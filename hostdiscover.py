@@ -9,28 +9,6 @@ import random
 import os
 
 
-
-def animated_sky(duration=10, width=40, height=10):
-    """Gökyüzü ve yıldız animasyonunu tek bir fonksiyonda çalıştırır."""
-    sky = "🌌"  # Gece gökyüzü arka planı
-    stars = ["⭐", "🌟", "✨"]  # Yıldızlar
-    import time
-    import os
-    def generate_sky():
-        """Rastgele yıldızlar ekleyerek gökyüzünü oluşturur."""
-        sky_lines = []
-        for _ in range(height):
-            line = ''.join(random.choice(stars) if random.random() < 0.2 else '.' for _ in range(width))
-            sky_lines.append(line)
-        return '\n'.join(sky_lines)
-
-    start_time = time.time()
-    while time.time() - start_time < duration:
-        os.system('cls' if os.name == 'nt' else 'clear')  # Konsolu temizle
-        print("\033[40m")  # Siyah arka plan
-        print(generate_sky())  # Yıldızlarla dolu gökyüzü
-        print("\033[0m")  # Renk sıfırlama
-        time.sleep(0.5)
 def play_police_animation():
     # Renkli ASCII karakterler
     blue = "\033[94m"  # Mavi
@@ -117,10 +95,82 @@ def ParserHostDiscovery():
     Parser.add_argument('-fi','--fake-ip',help='Scan With Fake İp Give a Random Ip Range',dest='fake_ip',default=None , type=int)
     Parser.add_argument('-ic','--ip_class',help='Please Select İp Class',default=None,dest='ip_class')
     Parser.add_argument('-p','--proxy',help='Chose Spesific your own proxy server or random option',dest='proxy',default=None)
+    Parser.add_argument('-o','--OS',help='Find Operating System',default=None,dest='os',action='store_true')
     args = Parser.parse_args()
     return args
 
 args = ParserHostDiscovery()
+
+
+def Learn_Window_Size_With_SYN_Packet(ip_address):
+        ports = [80, 443, 22, 21, 23, 53, 445]
+        for dst_port in ports:
+            src_port = random.randint(1024, 65535)
+            ip_layer = scapy.IP(dst=ip_address)
+            tcp_layer = scapy.TCP(sport=src_port, dport=dst_port, flags='S', seq=1000)
+            packet = ip_layer / tcp_layer
+
+            try:
+                response = scapy.sr1(packet, timeout=2, verbose=False)
+                if response and response.haslayer(scapy.TCP):
+                    tcp_resp = response.getlayer(scapy.TCP)
+                    window_size = tcp_resp.window
+
+                    if tcp_resp.flags == 0x14:
+                        continue
+                    elif tcp_resp.flags == 0x12:
+                        #print(f"[snow][ ✔ ] Window Size : {window_size} [/snow]")
+                        return window_size
+            except PermissionError:
+                print("[red]Yönetici olarak çalıştırmalısın![/red]")
+            except Exception as e:
+                print(f"[red]Hata: {e}[/red]")
+        return None
+
+def Learn_TTL_Value(ip_address):
+        icmp_packet = scapy.IP(dst=ip_address) / scapy.ICMP()
+        answered, _ = scapy.sr(icmp_packet, timeout=2, verbose=0)
+
+        if answered:
+            for _, value in answered:
+                #print(f"[ ✔ ][snow] TTL Değeri:[/snow] {value.ttl}")
+                return value.ttl
+        else:
+            print("[red]Hedefe ulaşılamıyor[/]")
+            return None
+
+def Os_Detection(ip_address):
+        ttl_value = Learn_TTL_Value(ip_address)
+        window_size_value = Learn_Window_Size_With_SYN_Packet(ip_address)
+
+        if ttl_value is None or window_size_value is None:
+            print("[red]İşletim sistemi tespit edilemedi.[/red]")
+            return 
+
+        if 0 < ttl_value <= 64:
+            if window_size_value in [29200, 8760, 14600, 5792, 65535]:
+                return "[green]OS: OpenBSD / Modern Linux Dist.[/green]"
+            elif window_size_value == 5840:
+                return "[green]OS: Linux 2.4.x - 2.6.x[/green]"
+            elif window_size_value in [16384, 32768]:
+                return "[green]OS: OpenBSD Or NetBSD[/green] "
+            elif window_size_value == 65535:
+                return "[green]OS: FreeBSD veya macOS olabilir[/green]"
+            else:
+                return "[yellow]OS: Unix/Linux Türevi (kesin değil)[/yellow]"
+
+        elif 65 <= ttl_value <= 128:
+            if window_size_value in [8192, 16384, 65535, 62240]:
+                return "[blue]🪟 OS: Windows[/blue]"
+            else:
+                return "[yellow]OS: Muhtemelen Windows ama emin değiliz[/yellow]"
+
+        elif 129 <= ttl_value <= 255:
+            return "[cyan]OS: Cisco Router / Ağ Cihazı olabilir[/cyan]"
+
+        else:
+            return"[yellow]❓ OS: Bilinmeyen[/yellow]"
+    
 
 
 
@@ -128,61 +178,74 @@ args = ParserHostDiscovery()
 def proxy_connect(option=None):
     try:
         if option == "random":
-            req = requests.get(f'https://www.proxy-list.download/api/v1/get?type=https')
+            req = requests.get('https://api.proxyscrape.com/?request=displayproxies&proxytype=http&timeout=1000&country=all')
             if req.status_code == 200:
                 print("Proxy adreslerine ulaşılıyor...")
                 proxy_list = req.text.splitlines()
-
-                # Random bir proxy seçiliyor
-                random_proxy_number = random.randint(0, len(proxy_list) - 1)
-                selected_proxy = proxy_list[random_proxy_number]
-                ip, port = selected_proxy.split(":")
-                
-                try:
-                    print(f"Seçilen random proxy: {ip}:{port}")
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as proxy_socket:
-                        proxy_socket.settimeout(5)  # Zaman aşımı ekleniyor (5 saniye)
-                        proxy_socket.connect((ip, int(port)))
-                        print("Proxy sunucusuna başarıyla bağlanıldı.")
-                except Exception as e:
-                    print(f"Random proxyye bağlanırken hata: {e}")
+                selected_proxy = random.choice(proxy_list)
+                proxy_to_test = selected_proxy
             else:
-                print("Proxy listesine erişim sağlanamadı.")
-        
-        # Eğer kullanıcı belirli bir proxy girerse
+                print("Proxy listesine erişilemedi.")
+                return None
         else:
-            ip, port = option.split(":")
+            proxy_to_test = option
+
+        if proxy_to_test:
+            ip, port = proxy_to_test.split(":")
             try:
-                print(f"Belirtilen proxy: {ip}:{port}")
+                print(f"Proxy test ediliyor: {ip}:{port}")
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as proxy_socket:
                     proxy_socket.settimeout(5)
                     proxy_socket.connect((ip, int(port)))
-                    print("Belirtilen proxy sunucusuna başarıyla bağlanıldı.")
+                    print("Proxy TCP bağlantısı başarılı.")
+
+                proxies = {
+                    "http": f"http://{proxy_to_test}",
+                    #"https": f"http://{proxy_to_test}",
+                }
+                test = requests.get("https://httpbin.org/ip", proxies=proxies, timeout=5)
+                if test.status_code == 200:
+                    print("Proxy HTTP isteğiyle de çalışıyor.")
+                    return proxy_to_test
+                else:
+                    print("Proxy HTTP üzerinden çalışmıyor.")
+                    return None
+
             except Exception as e:
-                print(f"Belirtilen proxyye bağlanırken hata: {e}")
+                print(f"Proxy bağlantı hatası: {e}")
+                return None
+        else:
+            print("Proxy belirtilmedi.")
+            return None
 
     except Exception as e:
         print(f"Genel hata: {e}")
+        return None
 
 def SiteCheck():
     try:
-        Url = requests.get("https://api.macvendors.com/", allow_redirects=True)
+        Url = requests.get("https://api.macvendors.com/44:38:39:ff:ef:57", allow_redirects=True)
         if Url.status_code == 200:
-            print(f"{Url.status_code}")   
+            print(f"{Url.status_code}")
         else:
             print("I can't reach", Url.status_code)
     except Exception as e:
         print("Error:", e)
+
 
 def get_mac_vendor(mac_address: str) -> str:
     url = f"https://api.macvendors.com/{mac_address}"
     try:
         response = requests.get(url)
         sleep(1)
-        response.raise_for_status()  # HTTP hataları varsa bir istisna oluşturur
+        response.raise_for_status()
         return response.text
     except requests.exceptions.RequestException:
         return "Error: Unknown Vendor"
+    else:
+        return "Error: Proxy not available"
+
+
 
 def Protocols():
     return [
@@ -369,15 +432,27 @@ def PortScannerWithFIN(ip_address:str , port:int)->bool:
 
         
 
-def HostDiscoveryWithIcmpFourPackReceive(ip_address: str, timeout: int, port_range: int , verbose:bool,port_type,fake_ip_range:int,ip_class,proxy):
+def HostDiscoveryWithIcmpFourPackReceive(ip_address: str, timeout: int, port_range: int , verbose:bool,port_type,fake_ip_range:int,ip_class,proxy,os:bool):
     print("")
-    print("[bold white]Dest Host \t\t\tReply From Host\t\t\tPort Status \t\t\t Protocols[/bold white]")
-    print("[bold yellow]--------------------------------------------------------------------------------------------------------------------------[/bold yellow]")
+    print("[bold white]Dest Host \t\t\tReply From Host\t\t\tPort Status \t\t\t Protocols \t\t\t Operating System[/bold white]")
+    cizgi = 170 * "-"
+    print(cizgi)
+
+    print(f"[bold yellow][/bold yellow]")
 
     PortNumbers = []
     ProtocolList = []
+    Os = []
     
     
+    if os == True:
+        Detect = Os_Detection(ip_address)
+        Os.append(Detect)
+        #Aşaığıya Bilgiyi Giricem 
+        
+        
+
+
     if proxy is not None:
         if not proxy_connect(proxy):
             print("Proxy bağlantısı başarısız oldu.")
@@ -452,7 +527,7 @@ def HostDiscoveryWithIcmpFourPackReceive(ip_address: str, timeout: int, port_ran
         for snd, rcv in answered:
             # Loopback adresi 127.0.0.1 ise atla
             if rcv.src != '127.0.0.1':
-                print(f"{snd.dst} \t\t\t{rcv.src} \t\t\t{list(PortNumbers)} \t\t\t {ProtocolList}")
+                print(f"{snd.dst} \t\t{rcv.src} \t\t{list(PortNumbers)} \t\t {ProtocolList} \t\t {Os}")
 
     # Yanıtlanmayan paketleri işle
     if unanswered:
@@ -461,16 +536,30 @@ def HostDiscoveryWithIcmpFourPackReceive(ip_address: str, timeout: int, port_ran
             if snd.dst != '127.0.0.1':
                 print(f"Host {snd.dst} is unreachable.")
 
-def HosDiscoveryOnePackReceive(ip_address:str, timeout:int ,port_range:int,verbose:bool,port_type,fake_ip_range:int,ip_class,proxy)->None:
+
+
+
+
+
+
+
+def HosDiscoveryOnePackReceive(ip_address:str, timeout:int ,port_range:int,verbose:bool,port_type,fake_ip_range:int,ip_class,proxy,os:bool):
     print("")
-    print("[bold white]Dest Host \t\t\tReply From Host\t\t\tPort Status \t\t\t Protocols[/bold white]")
-    print("[bold yellow]--------------------------------------------------------------------------------------------------------------------------[/bold yellow]")
+    print("[bold white]Dest Host \t\t\tReply From Host\t\t\tPort Status \t\t\t Protocols \t\t\t Operating System[/bold white]")
+    çizgi = 170 * "-"
+    print(f"[bold yellow]{çizgi}[/bold yellow]")
 
     PortNumbers = []
     ProtocolList = []
     SourceIp = ""
     DestIP = ""
+    Os = []
      
+    if os == True:
+        Detect = Os_Detection(ip_address)
+        Os.append(Detect)
+
+
     if proxy is not None:
         if not proxy_connect(proxy):
             print("Proxy bağlantısı başarısız oldu.")
@@ -554,12 +643,25 @@ def HosDiscoveryOnePackReceive(ip_address:str, timeout:int ,port_range:int,verbo
         print("Host'a ulaşılamıyor.")
 
     
-    print(f'{SourceIp} \t\t\t {DestIP} \t\t\t {list(PortNumbers)} \t\t\t {list(ProtocolList)}')
+    print(f'{SourceIp} \t\t\t {DestIP} \t\t\t {list(PortNumbers)} \t\t\t {list(ProtocolList)} \t\t\t{Os}')
 
-def HostDiscoveryWithArp(ip_address: str, subnet_mask: str, count: int, timeout: int, verbose: bool, port_range:int ,port_type,fake_ip_range:int,ip_class,proxy):
+
+
+
+
+
+
+
+
+
+
+
+
+def HostDiscoveryWithArp(ip_address: str, subnet_mask: str, count: int, timeout: int, verbose: bool, port_range:int ,port_type,fake_ip_range:int,ip_class,proxy,os:bool):
     print("")
-    print("[bold white]IP\t\tMAC Adresi \t\tMAC Vendor \t\tPort Status \t\t Service Name[/bold white]")
-    print("[bold yellow]----------------------------------------------------------------------------------------------------------------[/bold yellow]")
+    print("[bold white]IP\t\tMAC Adresi \t\tMAC Vendor \t\tPort Status \t\t Service Name \t\t\t Operating System[/bold white]")
+    çizgi = 170 * "-"
+    print(f"[bold yellow]{çizgi}[/bold yellow]")
             
     PortNumbers = []
     Mac_Address = []
@@ -567,7 +669,11 @@ def HostDiscoveryWithArp(ip_address: str, subnet_mask: str, count: int, timeout:
     max_ip_count = 0
     best_scan = []
     ProtocolList = []
+    Os = []
     
+    if os == True:
+        Detect = Os_Detection(ip_address)
+        Os.append(Detect)
     
 
     if proxy is not None:
@@ -654,7 +760,7 @@ def HostDiscoveryWithArp(ip_address: str, subnet_mask: str, count: int, timeout:
 
                 if len(vendor_info) < 35:
                     vendor_info = vendor_info.ljust(35)
-                print(f'{element[1].psrc} \t{element[1].hwsrc} \t{vendor_info} \t{list(PortNumbers)} \t {list(ProtocolList)}')
+                print(f'{element[1].psrc} \t{element[1].hwsrc} \t{vendor_info} \t{list(PortNumbers)} \t {list(ProtocolList)} \t {list(Os)}')
         else:
             print("There is no answer here.")
     except Exception as e:
@@ -669,10 +775,10 @@ if __name__ == '__main__':
     play_police_animation()
     args = ParserHostDiscovery()
     if args.type == 'ARP':
-        HostDiscoveryWithArp(args.ip_address , args.subnet_mask , args.count , args.timeout , args.verbose , args.port_range , args.port_type ,args.fake_ip,args.ip_class,args.proxy)
+        HostDiscoveryWithArp(args.ip_address , args.subnet_mask , args.count , args.timeout , args.verbose , args.port_range , args.port_type ,args.fake_ip,args.ip_class,args.proxy,args.os)
     elif args.type == 'ICMP4Rec':
-        HostDiscoveryWithIcmpFourPackReceive(args.ip_address , args.timeout , args.port_range , args.verbose , args.port_type,args.fake_ip,args.ip_class,args.proxy)
+        HostDiscoveryWithIcmpFourPackReceive(args.ip_address , args.timeout , args.port_range , args.verbose , args.port_type,args.fake_ip,args.ip_class,args.proxy,args.os)
     elif args.type == 'ICMP1Rec':
-        HosDiscoveryOnePackReceive(args.ip_address , args.timeout , args.port_range , args.verbose , args.port_type,args.fake_ip,args.ip_class,args.proxy)
+        HosDiscoveryOnePackReceive(args.ip_address , args.timeout , args.port_range , args.verbose , args.port_type,args.fake_ip,args.ip_class,args.proxy,args.os)
     else:
         print("Please choose a valid option.")
